@@ -1,4 +1,9 @@
-# Claude Desktop for Linux
+# Claude Desktop for Linux — with inline LaTeX rendering
+
+> **This is a personal fork** adding inline `$...$` math rendering via KaTeX.
+> Display math (`$$...$$`) already works in the official build; this fork extends it to inline math.
+> **Known issue:** the renderer can crash (SIGSEGV) when scrolling through very long sessions that contain ambiguous `$` content. Use `CLAUDE_LATEX=0 claude-desktop` to disable for affected sessions. See [`claude-desktop-fork-notes.md`](claude-desktop-fork-notes.md) for the full investigation.
+> Upstream: [aaddrick/claude-desktop-debian](https://github.com/aaddrick/claude-desktop-debian)
 
 This project provides build scripts to run Claude Desktop natively on Linux systems. It repackages the official Windows application for Linux distributions, producing `.deb` packages (Debian/Ubuntu), `.rpm` packages (Fedora/RHEL), distribution-agnostic AppImages, an [AUR package](https://aur.archlinux.org/packages/claude-desktop-appimage) for Arch Linux, and a Nix flake for NixOS.
 
