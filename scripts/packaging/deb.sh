@@ -167,8 +167,15 @@ app_dir="/usr/lib/$package_name"
 log_message "Changing directory to \$app_dir"
 cd "\$app_dir" || { log_message "Failed to cd to \$app_dir"; exit 1; }
 
-# Execute Electron (exec replaces the shell process so signals
-# like SIGINT, SIGTERM, and SIGHUP reach Electron directly)
+# Default: close window = quit (no tray lingering).
+# Override with CLAUDE_QUIT_ON_CLOSE=0 to re-enable close-to-tray.
+if [[ -z "\${CLAUDE_QUIT_ON_CLOSE:-}" ]]; then
+	export CLAUDE_QUIT_ON_CLOSE=1
+fi
+
+# Use exec so the terminal blocks while Claude is running and unblocks
+# the moment the process exits. With CLAUDE_QUIT_ON_CLOSE=1 the app
+# exits when the window is closed, so the terminal always comes back.
 log_message "Executing: \$electron_exec \${electron_args[*]} \$*"
 exec "\$electron_exec" "\${electron_args[@]}" "\$@" >> "\$log_file" 2>&1
 EOF

@@ -126,6 +126,10 @@ console.log('Updated package.json: main entry, desktopName, and node-pty depende
 	# docs/learnings/linux-topbar-shim.md.
 	patch_wco_shim
 
+	# Bundle KaTeX for inline LaTeX / math rendering in assistant responses.
+	install_katex
+	patch_latex_render
+
 	# Preserve externally-added mcpServers across config writes (#400)
 	patch_config_write_merge
 

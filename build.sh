@@ -66,6 +66,8 @@ source "$script_dir/scripts/patches/cowork.sh"
 source "$script_dir/scripts/patches/org-plugins.sh"
 # shellcheck source=scripts/patches/wco-shim.sh
 source "$script_dir/scripts/patches/wco-shim.sh"
+# shellcheck source=scripts/patches/latex.sh
+source "$script_dir/scripts/patches/latex.sh"
 # shellcheck source=scripts/patches/config.sh
 source "$script_dir/scripts/patches/config.sh"
 # shellcheck source=scripts/staging/electron.sh

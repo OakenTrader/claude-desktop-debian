@@ -90,6 +90,12 @@ console.log(`[Frame Fix] Close-to-tray: ${CLOSE_TO_TRAY ? 'on' : 'off'}`);
 const KEEP_AWAKE = process.env.CLAUDE_KEEP_AWAKE !== '0';
 console.log(`[Frame Fix] Keep awake: ${KEEP_AWAKE ? 'on (default)' : 'suppressed (CLAUDE_KEEP_AWAKE=0)'}`);
 
+// LaTeX rendering via KaTeX, controlled by CLAUDE_LATEX env var:
+//   unset / '1' - enabled (default): render $...$ and $$...$$ in responses
+//   '0'         - disabled
+const LATEX_RENDER = process.env.CLAUDE_LATEX !== '0';
+console.log(`[Frame Fix] LaTeX rendering: ${LATEX_RENDER ? 'on (default)' : 'off (CLAUDE_LATEX=0)'}`);
+
 // Detect if a window intends to be frameless (popup/Quick Entry/About).
 // Window kinds — see build-reference/app-extracted/.vite/build/index.js:
 //   Quick Entry:    titleBarStyle:"hidden",      frame:false  (caught early)
@@ -608,6 +614,19 @@ Module.prototype.require = function(id) {
         result.app.on('before-quit', () => {
           result.app._quittingIntentionally = true;
         });
+
+        // When a second Claude instance is launched while this one is hiding
+        // in the tray, Electron fires 'second-instance' on the first instance
+        // and exits the second. Without this handler the window stays hidden
+        // and the second process is left running — stacking stale processes.
+        result.app.on('second-instance', () => {
+          const wins = PatchedBrowserWindow.getAllWindows();
+          const main = wins.find((w) => !w.isDestroyed()) || wins[0];
+          if (!main || main.isDestroyed()) return;
+          if (main.isMinimized()) main.restore();
+          main.show();
+          main.focus();
+        });
       }
 
       // WCO diagnostic console mirror + global Ctrl+Q.
@@ -630,12 +649,50 @@ Module.prototype.require = function(id) {
       // Linux-only (and macOS has Cmd+Q natively).
       if (process.platform === 'linux') {
         result.app.on('web-contents-created', (_evt, wc) => {
+          // KaTeX LaTeX rendering — injected into the BrowserView that hosts
+          // claude.ai. Detected by URL; only the tiny setup script is injected
+          // (~2 KB). claude.ai already ships KaTeX; the setup script reuses it.
+          if (LATEX_RENDER) {
+            wc.on('did-finish-load', () => {
+              const url = wc.getURL();
+              if (!url.startsWith('https://claude.ai')) return;
+              const fs = require('fs');
+              const latexDir = path.join(__dirname, 'latex');
+              try {
+                const setupJs      = fs.readFileSync(path.join(__dirname, 'latex-render.js'), 'utf8');
+                const autoRenderJs = fs.readFileSync(path.join(latexDir, 'auto-render.min.js'), 'utf8');
+                const katexJs      = fs.readFileSync(path.join(latexDir, 'katex.min.js'), 'utf8');
+                // Always inject auto-render to overwrite claude.ai's display-only
+                // renderMathInElement with one that handles $...$ inline delimiters.
+                // Guard katex.min.js so it only executes when claude.ai hasn't already
+                // defined window.katex (avoids re-executing 318 KB unnecessarily).
+                const libs = '(function(){'
+                  + 'if(!window.katex){' + katexJs + '}'
+                  + autoRenderJs
+                  + '})();';
+                wc.executeJavaScript(libs + '\n' + setupJs).catch(() => {});
+                console.log('[LaTeX] KaTeX injected into claude.ai BrowserView');
+              } catch (err) {
+                console.warn('[LaTeX] Skipping inject:', err.message);
+              }
+            });
+          }
+
+          // Log renderer crashes (SIGSEGV etc.) — these don't produce
+          // console-message events, so we need render-process-gone.
+          wc.on('render-process-gone', (_e, details) => {
+            console.error('[BrowserView] RENDERER CRASHED:', JSON.stringify(details));
+          });
+
           if (TITLEBAR_STYLE !== 'native') {
             wc.on('console-message', (event) => {
               const msg = (event && event.message) || '';
+              // Mirror LaTeX / WCO / Drag shim messages and ALL errors/warnings.
               if (msg.startsWith('[WCO Diagnostic]')
                 || msg.startsWith('[WCO Shim]')
-                || msg.startsWith('[Drag Shim]')) {
+                || msg.startsWith('[Drag Shim]')
+                || msg.startsWith('[LaTeX Render]')
+                || (event && (event.level === 3 || event.level === 2))) {
                 console.log('[BrowserView]', msg);
               }
             });
